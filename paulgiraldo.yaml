@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: giraldopalacios-namespace
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: giraldopalacios-config
+  namespace: giraldopalacios-namespace
+data:
+  NOMBRES: "Carlos Paul"
+  APELLIDOS: "Giraldo Palacios"
+  EDAD: "52"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: giraldopalacios-secret
+  namespace: giraldopalacios-namespace
+type: Opaque
+data:
+  clave: T1JRVUVTVEFET1JFUw==
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: giraldopalacios-pv
+  namespace: giraldopalacios-namespace
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /tmp/log-nginx
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: giraldopalacios-pvc
+  namespace: giraldopalacios-namespace
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: manual
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: giraldopalacios-deployment
+  namespace: giraldopalacios-namespace
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pg-nginx
+  template:
+    metadata:
+      labels:
+        app: pg-nginx
+    spec:
+      containers:
+      - name: pg-nginx-container
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: data-volume
+          mountPath: "/var/log/nginx"
+        envFrom:
+        - configMapRef:
+            name: giraldopalacios-config
+        env:
+          - name: CLAVE
+            valueFrom:
+              secretKeyRef:
+                name: giraldopalacios-secret
+                key: clave
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: giraldopalacios-pvc
+  strategy:
+    type: Recreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: giraldopalacios-service
+  namespace: giraldopalacios-namespace
+spec:
+  selector:
+    app: pg-nginx
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 80
+  type: NodePort
+#---
+#apiVersion: networking.k8s.io/v1
+#kind: Ingress
+#metadata:
+#  name: paulgiraldo-ingress
+#  namespace: giraldopalacios-namespace
+#spec:
+#  defaultBackend:
+#    service:
+#      name: giraldopalacios-service
+#      port:
+#        number: 8080
